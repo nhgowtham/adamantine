@@ -43,6 +43,8 @@ void thermal_2d(boost::property_tree::ptree &database, double time_step)
   database.put("sources.beam_0.diameter", 1e100);
   database.put("sources.beam_0.max_power", 1e300);
   database.put("sources.beam_0.abscissa", "t");
+  // Boundary condition database
+  database.put("boundary_conditions.radiative_loss", false);
   // Build ThermalPhysics
   adamantine::ThermalPhysics<2, 2, MemorySpaceType, dealii::QGauss<1>> physics(
       communicator, database, geometry);
@@ -104,6 +106,8 @@ void thermal_2d_manufactured_solution()
   database.put("sources.beam_0.abscissa", "1");
   // Time-stepping database
   database.put("time_stepping.method", "rk_fourth_order");
+  // Boundary condition database
+  database.put("boundary_conditions.radiative_loss", false);
   // Build ThermalPhysics
   adamantine::ThermalPhysics<2, 2, MemorySpaceType, dealii::QGauss<1>> physics(
       communicator, database, geometry);
@@ -170,6 +174,8 @@ void initial_temperature()
   database.put("sources.beam_0.abscissa", "t");
   // Time-stepping database
   database.put("time_stepping.method", "rk_fourth_order");
+  // Boundary condition database
+  database.put("boundary_conditions.radiative_loss", false);
   // Build ThermalPhysics
   adamantine::ThermalPhysics<2, 2, MemorySpaceType, dealii::QGauss<1>> physics(
       communicator, database, geometry);

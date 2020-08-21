@@ -21,7 +21,9 @@ materials
 {
   n_materials 1
 
-  property_format polynomial
+  property_format polynomial ;  Value can be polynomial or table
+
+  initial_temperature 300 ; Optional parameter. Default value is 300.
   
   material_0
   {
@@ -93,6 +95,16 @@ discretization
 {
   fe_degree 3
   quadrature gauss ; Optional parameter. Possibilities: gauss or lobatto
+}
+
+boundary_conditions
+{
+  radiative_loss true ; Optional parameter. Possibities: true [default] or false
+}
+
+profiling
+{
+  timer false ; Optional property tree. 
 }
 
 memory_space device ; If compiled with CUDA support, run on the device

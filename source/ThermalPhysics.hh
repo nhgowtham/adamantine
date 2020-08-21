@@ -134,6 +134,10 @@ private:
    */
   bool _right_preconditioning;
   /**
+   * TODO
+   */
+  bool _radiative_bc;
+  /**
    * Maximum number of iterations to invert the ImplicitOperator.
    */
   unsigned int _max_iter;

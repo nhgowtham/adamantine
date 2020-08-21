@@ -43,8 +43,8 @@ public:
    *   - <B>material_X.Y</B>: property_tree where Y is either liquid, powder, or
    *   solid [optional]
    *   - <B>material_X.Y.Z</B>: string where Z is either density, specific_heat,
-   *   or thermal_conductivity, describe the behavior of the property as a
-   *   function of the temperatur (e.g. "2.*T") [optional]
+   *   thermal_conductivity, or emissitiviry describes the behavior of the
+   * property as a function of the temperature [optional]
    *   - <B>material.X.A</B>: A is either solidus, liquidus, or latent heat
    * [optional]
    */

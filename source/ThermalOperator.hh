@@ -24,7 +24,8 @@ class ThermalOperator final : public ThermalOperatorBase<dim, MemorySpaceType>
 {
 public:
   ThermalOperator(MPI_Comm const &communicator,
-                  std::shared_ptr<MaterialProperty<dim>> material_properties);
+                  std::shared_ptr<MaterialProperty<dim>> material_properties,
+                  bool radiative_bc);
 
   /**
    * Associate the AffineConstraints<double> and the MatrixFree objects to the
@@ -106,9 +107,28 @@ public:
 
 private:
   /**
-   * Apply the operator on a given set of quadrature points.
+   * Apply the operator on a given set of quadrature points in cells.
    */
-  void local_apply(
+  void cell_local_apply(
+      dealii::MatrixFree<dim, double> const &data,
+      dealii::LA::distributed::Vector<double, MemorySpaceType> &dst,
+      dealii::LA::distributed::Vector<double, MemorySpaceType> const &src,
+      std::pair<unsigned int, unsigned int> const &cell_range) const;
+
+  /**
+   * Apply the operator on a given set of quadrature points on faces. This is a
+   * no-op.
+   */
+  void face_local_apply(
+      dealii::MatrixFree<dim, double> const &data,
+      dealii::LA::distributed::Vector<double, MemorySpaceType> &dst,
+      dealii::LA::distributed::Vector<double, MemorySpaceType> const &src,
+      std::pair<unsigned int, unsigned int> const &cell_range) const;
+
+  /**
+   * Apply the operator on a given set of quadrature points on boundary faces.
+   */
+  void boundary_local_apply(
       dealii::MatrixFree<dim, double> const &data,
       dealii::LA::distributed::Vector<double, MemorySpaceType> &dst,
       dealii::LA::distributed::Vector<double, MemorySpaceType> const &src,
@@ -119,6 +139,10 @@ private:
    */
   MPI_Comm const &_communicator;
   /**
+   * TODO
+   */
+  bool _radiative_bc;
+  /**
    * Data to configure the MatrixFree object.
    */
   typename dealii::MatrixFree<dim, double>::AdditionalData _matrix_free_data;
@@ -126,6 +150,14 @@ private:
    * Store the \f$ \frac{1}{\rho C_p}\f$ coefficient.
    */
   dealii::Table<2, dealii::VectorizedArray<double>> _inv_rho_cp;
+  /**
+   * TODO
+   */
+  dealii::Table<2, dealii::VectorizedArray<double>> _inv_rho_cp_boundary;
+  /**
+   * TODO
+   */
+  dealii::Table<2, dealii::VectorizedArray<double>> _rad_heat_transfer;
   /**
    * Table of thermal conductivity coefficient.
    */

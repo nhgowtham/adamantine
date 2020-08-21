@@ -57,7 +57,7 @@ BOOST_AUTO_TEST_CASE(post_processor)
 
   // Initialize the ThermalOperator
   adamantine::ThermalOperator<2, 2, dealii::MemorySpace::Host> thermal_operator(
-      communicator, mat_properties);
+      communicator, mat_properties, false);
   thermal_operator.reinit(dof_handler, affine_constraints, quad);
   thermal_operator.compute_inverse_mass_matrix(dof_handler, affine_constraints);
 

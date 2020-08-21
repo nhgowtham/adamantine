@@ -177,16 +177,22 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::ThermalPhysics(
         std::make_unique<SimpleSource<dim>>(hs_database);
   }
 
+  // Read boundary conditions
+  _radiative_bc = database.get("boundary_conditions.radiative_loss", true);
+
   // Create the thermal operator
   if (std::is_same<MemorySpaceType, dealii::MemorySpace::Host>::value)
     _thermal_operator =
         std::make_shared<ThermalOperator<dim, fe_degree, MemorySpaceType>>(
-            communicator, _material_properties);
+            communicator, _material_properties, _radiative_bc);
 #ifdef ADAMANTINE_HAVE_CUDA
   else
+  {
     _thermal_operator = std::make_shared<
         ThermalOperatorDevice<dim, fe_degree, MemorySpaceType>>(
         communicator, _material_properties);
+    _radiative_bc = false;
+  }
 #endif
 
   // Create the time stepping scheme
@@ -439,8 +445,14 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
                                   dealii::update_quadrature_points |
                                       dealii::update_values |
                                       dealii::update_JxW_values);
+  dealii::QGauss<dim - 1> face_quadrature(fe_degree + 1);
+  dealii::FEFaceValues<dim> fe_face_values(
+      _fe, face_quadrature,
+      dealii::update_values | dealii::update_quadrature_points |
+          dealii::update_JxW_values);
   unsigned int const dofs_per_cell = _fe.dofs_per_cell;
   unsigned int const n_q_points = source_quadrature.size();
+  unsigned int const n_face_q_points = face_quadrature.size();
   std::vector<dealii::types::global_dof_index> local_dof_indices(dofs_per_cell);
   dealii::Vector<double> cell_source(dofs_per_cell);
 
@@ -450,6 +462,7 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
   {
     cell_source = 0.;
     fe_values.reinit(cell);
+    // TODO this should a material property
     double const inv_rho_cp = _thermal_operator->get_inv_rho_cp(cell);
 
     for (unsigned int i = 0; i < dofs_per_cell; ++i)
@@ -465,6 +478,44 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
                           fe_values.shape_value(i, q) * fe_values.JxW(q);
       }
     }
+
+    // Add radiative boundary condition
+    if (_radiative_bc && cell->at_boundary())
+    {
+      double const rad_temp_infty = _material_properties->get(
+          cell, Property::radiation_temperature_infty);
+      ASSERT(rad_temp_infty < std::numeric_limits<double>::max(),
+             "Reference radiation temperature is not set.");
+      double const rad_heat_transfer_coef = _material_properties->get(
+          cell, StateProperty::radiation_heat_transfer_coef);
+      ASSERT(std::isfinite(rad_heat_transfer_coef),
+             "Radiation heat transfer coefficient is infinite.");
+      for (auto const &face : cell->face_iterators())
+      {
+        if ((face->at_boundary()) &&
+            (face->boundary_id() !=
+             static_cast<dealii::types::boundary_id>(BoundaryFace::bottom)))
+        {
+          fe_face_values.reinit(cell, face);
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+          {
+            for (unsigned int q = 0; q < n_face_q_points; ++q)
+            {
+              cell_source[i] +=
+                  inv_rho_cp * rad_heat_transfer_coef * rad_temp_infty *
+                  fe_face_values.shape_value(i, q) * fe_face_values.JxW(q);
+              std::cout << inv_rho_cp << " " << rad_heat_transfer_coef << " "
+                        << rad_temp_infty << " "
+                        << fe_face_values.shape_value(i, q) << " "
+                        << fe_face_values.JxW(q) << std::endl;
+            }
+            ASSERT(std::isfinite(cell_source[i]),
+                   "Problem with radiative boundary condition");
+          }
+        }
+      }
+    }
+
     cell->get_dof_indices(local_dof_indices);
     _affine_constraints.distribute_local_to_global(cell_source,
                                                    local_dof_indices, source);
