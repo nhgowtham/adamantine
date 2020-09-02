@@ -30,6 +30,13 @@ ThermalOperator<dim, fe_degree, MemorySpaceType>::ThermalOperator(
   _matrix_free_data.mapping_update_flags = dealii::update_gradients |
                                            dealii::update_JxW_values |
                                            dealii::update_quadrature_points;
+  _matrix_free_data.mapping_update_flags_inner_faces =
+      dealii::update_quadrature_points;
+  _matrix_free_data.mapping_update_flags_boundary_faces =
+      dealii::update_JxW_values | dealii::update_quadrature_points;
+  // Don't use multithreading
+  _matrix_free_data.tasks_parallel_scheme =
+      dealii::MatrixFree<dim, double>::AdditionalData::none;
 }
 
 template <int dim, int fe_degree, typename MemorySpaceType>
@@ -125,9 +132,12 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::vmult_add(
     dealii::LA::distributed::Vector<double, MemorySpaceType> const &src) const
 {
   // Execute the matrix-free matrix-vector multiplication
-  _matrix_free.loop(&ThermalOperator::cell_local_apply,
-                    &ThermalOperator::face_local_apply,
-                    &ThermalOperator::boundary_local_apply, this, dst, src);
+  if (this->_radiative_bc)
+    _matrix_free.loop(&ThermalOperator::cell_local_apply,
+                      &ThermalOperator::face_local_apply,
+                      &ThermalOperator::boundary_local_apply, this, dst, src);
+  else
+    _matrix_free.cell_loop(&ThermalOperator::cell_local_apply, this, dst, src);
 
   // Because cell_loop resolves the constraints, the constrained dofs are not
   // called they stay at zero. Thus, we need to force the value on the
@@ -203,7 +213,7 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::boundary_local_apply(
     std::pair<unsigned int, unsigned int> const &face_range) const
 {
   dealii::FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, double>
-      fe_face_eval(data, false);
+      fe_face_eval(data);
 
   for (unsigned int face = face_range.first; face < face_range.second; ++face)
   {
@@ -215,10 +225,11 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::boundary_local_apply(
       // gather_evaluate combines read_dof_value and evaluate
       fe_face_eval.gather_evaluate(src, dealii::EvaluationFlags::values);
       for (unsigned int q = 0; q < fe_face_eval.n_q_points; ++q)
-        fe_face_eval.submit_value(-_inv_rho_cp_boundary(face, q) *
-                                      _rad_heat_transfer(face, q) *
-                                      fe_face_eval.get_value(q),
-                                  q);
+        fe_face_eval.submit_value(
+            -_inv_rho_cp_boundary(face - _inner_face_offset, q) *
+                _rad_heat_transfer(face - _inner_face_offset, q) *
+                fe_face_eval.get_value(q),
+            q);
       // integrate_scatter combines integrate and distribute_local_to_global
       fe_face_eval.integrate_scatter(dealii::EvaluationFlags::values, dst);
     }
@@ -269,7 +280,7 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::
   if (this->_radiative_bc)
   {
     // First we need to skip all the inner faces
-    unsigned int const inner_face_offset = _matrix_free.n_inner_face_batches();
+    _inner_face_offset = _matrix_free.n_inner_face_batches();
     unsigned int const n_boundary_faces =
         _matrix_free.n_boundary_face_batches();
     dealii::FEFaceEvaluation<dim, fe_degree, fe_degree + 1, 1, double>
@@ -277,8 +288,8 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::
     unsigned int const fe_face_eval_n_q_points = fe_face_eval.n_q_points;
     _inv_rho_cp_boundary.reinit(n_boundary_faces, fe_face_eval_n_q_points);
     _rad_heat_transfer.reinit(n_boundary_faces, fe_face_eval_n_q_points);
-    for (unsigned int boundary_face = inner_face_offset;
-         boundary_face < inner_face_offset + n_boundary_faces; ++boundary_face)
+    for (unsigned int boundary_face = _inner_face_offset;
+         boundary_face < _inner_face_offset + n_boundary_faces; ++boundary_face)
       for (unsigned int q = 0; q < fe_face_eval_n_q_points; ++q)
         for (unsigned int i = 0;
              i < _matrix_free.n_active_entries_per_face_batch(boundary_face);
@@ -297,13 +308,14 @@ void ThermalOperator<dim, fe_degree, MemorySpaceType>::
 
             // Assume the material property is constant per cell. So we don't
             // need the face number to get the material property.
-            _inv_rho_cp_boundary(boundary_face, q)[i] =
+            _inv_rho_cp_boundary(boundary_face - _inner_face_offset, q)[i] =
                 1. /
                 (_material_properties->get(cell_tria, StateProperty::density) *
                  _material_properties->get(cell_tria,
                                            StateProperty::specific_heat));
-            _rad_heat_transfer(boundary_face, q)[i] = _material_properties->get(
-                cell_tria, StateProperty::radiation_heat_transfer_coef);
+            _rad_heat_transfer(boundary_face - _inner_face_offset, q)[i] =
+                _material_properties->get(
+                    cell_tria, StateProperty::radiation_heat_transfer_coef);
           }
         }
   }

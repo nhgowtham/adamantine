@@ -143,6 +143,10 @@ private:
    */
   bool _radiative_bc;
   /**
+   * TODO
+   */
+  unsigned int _inner_face_offset;
+  /**
    * Data to configure the MatrixFree object.
    */
   typename dealii::MatrixFree<dim, double>::AdditionalData _matrix_free_data;
