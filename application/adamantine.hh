@@ -127,7 +127,7 @@ inline void initialize_timers(MPI_Comm const &communicator,
 
 template <int dim, int fe_degree, typename MemorySpaceType,
           typename QuadratureType>
-std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &initialize(
+std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &initialize(
     MPI_Comm const &communicator, boost::property_tree::ptree const &database,
     adamantine::Geometry<dim> &geometry,
     std::unique_ptr<adamantine::Physics<dim, MemorySpaceType>> &thermal_physics)
@@ -139,11 +139,11 @@ std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &initialize(
   return static_cast<adamantine::ThermalPhysics<dim, fe_degree, MemorySpaceType,
                                                 QuadratureType> *>(
              thermal_physics.get())
-      ->get_electron_beams();
+      ->get_heat_sources();
 }
 
 template <int dim, int fe_degree, typename MemorySpaceType>
-std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &
+std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &
 initialize_quadrature(
     std::string const &quadrature_type, MPI_Comm const &communicator,
     boost::property_tree::ptree const &database,
@@ -164,7 +164,7 @@ initialize_quadrature(
 }
 
 template <int dim, typename MemorySpaceType>
-std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &
+std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &
 initialize_thermal_physics(
     unsigned int fe_degree, std::string const &quadrature_type,
     MPI_Comm const &communicator, boost::property_tree::ptree const &database,
@@ -393,19 +393,19 @@ compute_cells_to_refine(
     dealii::parallel::distributed::Triangulation<dim> &triangulation,
     double const time, double const next_refinement_time,
     unsigned int const n_time_steps,
-    std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &electron_beams)
+    std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &heat_sources)
 {
   // The save_time()/rewind_time() functions are used to save the current time
-  // and row in the list of beam positions. It does nothing when the position is
-  // given by an analytic formula.
-  for (auto &beam : electron_beams)
-    beam->save_time();
+  // and row in the list of heat source positions. It does nothing when the
+  // position is given by an analytic formula.
+  for (auto &hs : heat_sources)
+    hs->save_time();
 
-  // Compute the position of the beams between time and next_refinement_time and
-  // refine the mesh where the source is greater than 1e-15. This cut-off is due
-  // to the fact that the source is gaussian and thus never strictly zero. If
-  // the beams intersect, some cells will appear twice in the vector. This is
-  // not a problem.
+  // Compute the position of the heat sources between time and
+  // next_refinement_time and refine the mesh where the source is greater than
+  // 1e-15. This cut-off is due to the fact that the source is gaussian and thus
+  // never strictly zero. If the heat sources intersect, some cells will appear
+  // twice in the vector. This is not a problem.
   std::vector<typename dealii::parallel::distributed::Triangulation<
       dim>::active_cell_iterator>
       cells_to_refine;
@@ -414,19 +414,19 @@ compute_cells_to_refine(
     double const current_time = time + static_cast<double>(i) /
                                            static_cast<double>(n_time_steps) *
                                            (next_refinement_time - time);
-    for (auto &beam : electron_beams)
+    for (auto &hs : heat_sources)
     {
-      beam->set_time(current_time);
+      hs->set_time(current_time);
       for (auto cell : dealii::filter_iterators(
                triangulation.active_cell_iterators(),
                dealii::IteratorFilters::LocallyOwnedCell()))
-        if (beam->value(cell->center()) > 1e-15)
+        if (hs->value(cell->center()) > 1e-15)
           cells_to_refine.push_back(cell);
     }
   }
 
-  for (auto &beam : electron_beams)
-    beam->rewind_time();
+  for (auto &hs : heat_sources)
+    hs->rewind_time();
 
   return cells_to_refine;
 }
@@ -435,7 +435,7 @@ template <int dim, int fe_degree, typename MemorySpaceType>
 void refine_mesh(
     std::unique_ptr<adamantine::Physics<dim, MemorySpaceType>> &thermal_physics,
     dealii::LA::distributed::Vector<double, MemorySpaceType> &solution,
-    std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &electron_beams,
+    std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &heat_sources,
     double const time, double const next_refinement_time,
     unsigned int const time_steps_refinement,
     boost::property_tree::ptree const &refinement_database)
@@ -452,8 +452,8 @@ void refine_mesh(
       dynamic_cast<dealii::parallel::distributed::Triangulation<dim> &>(
           const_cast<dealii::Triangulation<dim> &>(
               dof_handler.get_triangulation()));
-  // Number of times the mesh on the beam paths will be refined and maximum
-  // number of time a cell can be refined.
+  // Number of times the mesh on the heat source paths will be refined and
+  // maximum number of time a cell can be refined.
   unsigned int const n_beam_refinements =
       refinement_database.get("n_beam_refinements", 2);
   int max_level = refinement_database.get<int>("max_level");
@@ -490,7 +490,7 @@ void refine_mesh(
         dim>::active_cell_iterator>
         cells_to_refine =
             compute_cells_to_refine(triangulation, time, next_refinement_time,
-                                    time_steps_refinement, electron_beams);
+                                    time_steps_refinement, heat_sources);
 
     // Flag the cells for refinement.
     for (auto &cell : cells_to_refine)
@@ -509,7 +509,7 @@ template <int dim, typename MemorySpaceType>
 void refine_mesh(
     std::unique_ptr<adamantine::Physics<dim, MemorySpaceType>> &thermal_physics,
     dealii::LA::distributed::Vector<double, MemorySpaceType> &solution,
-    std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &electron_beams,
+    std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &heat_sources,
     double const time, double const next_refinement_time,
     unsigned int const time_steps_refinement,
     boost::property_tree::ptree const &refinement_database,
@@ -519,70 +519,70 @@ void refine_mesh(
   {
   case 1:
   {
-    refine_mesh<dim, 1>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 1>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 2:
   {
-    refine_mesh<dim, 2>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 2>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 3:
   {
-    refine_mesh<dim, 3>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 3>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 4:
   {
-    refine_mesh<dim, 4>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 4>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 5:
   {
-    refine_mesh<dim, 5>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 5>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 6:
   {
-    refine_mesh<dim, 6>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 6>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 7:
   {
-    refine_mesh<dim, 7>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 7>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 8:
   {
-    refine_mesh<dim, 8>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 8>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 9:
   {
-    refine_mesh<dim, 9>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 9>(thermal_physics, solution, heat_sources, time,
                         next_refinement_time, time_steps_refinement,
                         refinement_database);
     break;
   }
   case 10:
   {
-    refine_mesh<dim, 10>(thermal_physics, solution, electron_beams, time,
+    refine_mesh<dim, 10>(thermal_physics, solution, heat_sources, time,
                          next_refinement_time, time_steps_refinement,
                          refinement_database);
     break;
@@ -623,7 +623,7 @@ run(MPI_Comm const &communicator, boost::property_tree::ptree const &database,
 
   adamantine::Geometry<dim> geometry(communicator, geometry_database);
   std::unique_ptr<adamantine::Physics<dim, MemorySpaceType>> thermal_physics;
-  std::vector<std::unique_ptr<adamantine::ElectronBeam<dim>>> &electron_beams =
+  std::vector<std::unique_ptr<adamantine::HeatSource<dim>>> &heat_sources =
       initialize_thermal_physics<dim>(fe_degree, quadrature_type, communicator,
                                       database, geometry, thermal_physics);
   adamantine::PostProcessor<dim> post_processor(
@@ -665,7 +665,7 @@ run(MPI_Comm const &communicator, boost::property_tree::ptree const &database,
     {
       next_refinement_time = time + time_steps_refinement * time_step;
       timers[adamantine::refine].start();
-      refine_mesh(thermal_physics, solution, electron_beams, time,
+      refine_mesh(thermal_physics, solution, heat_sources, time,
                   next_refinement_time, time_steps_refinement,
                   refinement_database, fe_degree);
       timers[adamantine::refine].stop();

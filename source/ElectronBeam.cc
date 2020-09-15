@@ -5,9 +5,6 @@
  * for the text and further information on this license.
  */
 
-#ifndef ELECTRON_BEAM_TEMPLATES_HH
-#define ELECTRON_BEAM_TEMPLATES_HH
-
 #include <ElectronBeam.hh>
 #include <instantiation.hh>
 #include <utils.hh>
@@ -78,7 +75,7 @@ void PointSource::save_time()
 
 template <int dim>
 ElectronBeam<dim>::ElectronBeam(boost::property_tree::ptree const &database)
-    : dealii::Function<dim>(), _is_point_source(false), _max_height(0.)
+    : _is_point_source(false), _max_height(0.)
 {
   // Set the properties of the electron beam.
   _beam.depth = database.get<double>("depth");
@@ -203,5 +200,3 @@ double ElectronBeam<dim>::value(dealii::Point<dim> const &point,
 } // namespace adamantine
 
 INSTANTIATE_DIM(ElectronBeam)
-
-#endif

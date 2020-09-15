@@ -8,6 +8,8 @@
 #ifndef ELECTRON_BEAM_HH
 #define ELECTRON_BEAM_HH
 
+#include <HeatSource.hh>
+
 #include <deal.II/base/function_parser.h>
 
 #include <boost/property_tree/ptree.hpp>
@@ -48,7 +50,7 @@ public:
  * This class describes the evolution of an electron beam source.
  */
 template <int dim>
-class ElectronBeam : public dealii::Function<dim>
+class ElectronBeam : public HeatSource<dim>
 {
 public:
   /**
@@ -95,13 +97,13 @@ public:
   /**
    * Reset the current time and the position to the last saved state.
    */
-  void rewind_time();
+  void rewind_time() override;
 
   /**
    * Save the current time and the position in the list of successive positions
    * of the beam.
    */
-  void save_time();
+  void save_time() override;
 
 private:
   /**

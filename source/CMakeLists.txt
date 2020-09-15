@@ -1,12 +1,14 @@
 set(Adamantine_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/ElectronBeam.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/Geometry.hh
+    ${CMAKE_CURRENT_SOURCE_DIR}/HeatSource.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/ImplicitOperator.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/MaterialProperty.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/NewtonSolver.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/Operator.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/Physics.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/PostProcessor.hh
+    ${CMAKE_CURRENT_SOURCE_DIR}/SimpleSource.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/ThermalOperator.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/ThermalPhysics.hh
     ${CMAKE_CURRENT_SOURCE_DIR}/ThermalPhysics.templates.hh
@@ -21,6 +23,7 @@ set(Adamantine_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/MaterialProperty.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/NewtonSolver.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/PostProcessor.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/SimpleSource.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ThermalOperator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ThermalPhysics.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Timer.cc

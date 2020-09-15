@@ -57,6 +57,8 @@ materials
 
 sources
 {
+  n_sources 1
+
   n_beams 1
 
   beam_0

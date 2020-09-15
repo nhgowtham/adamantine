@@ -12,6 +12,8 @@
 #ifdef ADAMANTINE_HAVE_CUDA
 #include <ThermalOperatorDevice.hh>
 #endif
+#include <ElectronBeam.hh>
+#include <SimpleSource.hh>
 #include <ThermalPhysics.hh>
 
 #include <deal.II/dofs/dof_tools.h>
@@ -152,17 +154,27 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::ThermalPhysics(
   _material_properties.reset(new MaterialProperty<dim>(
       communicator, _geometry.get_triangulation(), material_database));
 
-  // Create the electron beams
+  // Create the heat sources
   boost::property_tree::ptree const &source_database =
       database.get_child("sources");
+  unsigned int const n_heat_sources =
+      source_database.get<unsigned int>("n_sources");
+  _heat_sources.resize(n_heat_sources);
   unsigned int const n_beams = source_database.get<unsigned int>("n_beams");
-  _electron_beams.resize(n_beams);
   for (unsigned int i = 0; i < n_beams; ++i)
   {
     boost::property_tree::ptree const &beam_database =
         source_database.get_child("beam_" + std::to_string(i));
-    _electron_beams[i] = std::make_unique<ElectronBeam<dim>>(beam_database);
-    _electron_beams[i]->set_max_height(_geometry.get_max_height());
+    auto electron_beam = std::make_unique<ElectronBeam<dim>>(beam_database);
+    electron_beam->set_max_height(_geometry.get_max_height());
+    _heat_sources[i] = std::move(electron_beam);
+  }
+  for (unsigned int i = 0; i < n_heat_sources - n_beams; ++i)
+  {
+    boost::property_tree::ptree const &hs_database =
+        source_database.get_child("hs_" + std::to_string(i));
+    _heat_sources[i + n_beams] =
+        std::make_unique<SimpleSource<dim>>(hs_database);
   }
 
   // Create the thermal operator
@@ -420,8 +432,8 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
   source = 0.;
 
   // Compute the source term.
-  for (auto &beam : _electron_beams)
-    beam->set_time(t);
+  for (auto &hs : _heat_sources)
+    hs->set_time(t);
   dealii::QGauss<dim> source_quadrature(fe_degree + 1);
   dealii::FEValues<dim> fe_values(_fe, source_quadrature,
                                   dealii::update_quadrature_points |
@@ -446,8 +458,8 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
       {
         double quad_pt_source = 0.;
         dealii::Point<dim> const &q_point = fe_values.quadrature_point(q);
-        for (auto &beam : _electron_beams)
-          quad_pt_source += beam->value(q_point);
+        for (auto &hs : _heat_sources)
+          quad_pt_source += hs->value(q_point);
 
         cell_source[i] += inv_rho_cp * quad_pt_source *
                           fe_values.shape_value(i, q) * fe_values.JxW(q);
