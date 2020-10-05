@@ -504,10 +504,6 @@ ThermalPhysics<dim, fe_degree, MemorySpaceType, QuadratureType>::
               cell_source[i] +=
                   inv_rho_cp * rad_heat_transfer_coef * rad_temp_infty *
                   fe_face_values.shape_value(i, q) * fe_face_values.JxW(q);
-              std::cout << inv_rho_cp << " " << rad_heat_transfer_coef << " "
-                        << rad_temp_infty << " "
-                        << fe_face_values.shape_value(i, q) << " "
-                        << fe_face_values.JxW(q) << std::endl;
             }
             ASSERT(std::isfinite(cell_source[i]),
                    "Problem with radiative boundary condition");
